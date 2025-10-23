@@ -1,0 +1,98 @@
+# Monorepo dependencies
+node_modules/
+**/node_modules/
+.npm/
+.pnpm-store/
+
+# Yarn modern cache/state
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Environment and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build and cache outputs
+dist/
+build/
+out/
+**/dist/
+**/build/
+**/out/
+.vite/
+**/.vite/
+.cache/
+**/.cache/
+coverage/
+**/coverage/
+.nyc_output/
+tmp/
+temp/
+*.tmp
+*.tsbuildinfo
+
+# Local databases
+*.db
+*.db-journal
+**/dev.db*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor and OS files
+.vscode/
+.idea/
+.kiro/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Capacitor / Android generated artifacts
+**/android/.gradle/
+**/android/.idea/
+**/android/local.properties
+**/android/captures/
+**/android/.cxx/
+**/android/build/
+**/android/**/build/
+**/android/**/generated/
+**/android/app/debug/
+**/android/app/release/
+**/android/**/*.jks
+**/android/**/*.keystore
+
+# Optional iOS artifacts (if added later)
+**/ios/App/Pods/
+**/ios/App/build/
+**/ios/App/DerivedData/
+**/ios/App/.symlinks/
+**/ios/App/xcuserdata/
+
+# Hosting platform output
+.vercel/
+.netlify/
+
+# Local Windows launchers
+start-app.bat
+start-production.bat
+
+# Local deployment helpers (optional for your cloud deploy path)
+deploy.sh
+docker-compose.yml
+init-db.sql
