@@ -1,0 +1,52 @@
+{
+  "name": "@expense-tracker/backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "prestart": "node scripts/ensure-prisma-client.js",
+    "start": "node src/server.js",
+    "predev": "node scripts/ensure-prisma-client.js",
+    "dev": "nodemon src/server.js",
+    "build": "npm run db:generate",
+    "db:generate": "prisma generate",
+    "db:push": "node scripts/prisma-with-env.js db push",
+    "db:migrate": "node scripts/prisma-with-env.js migrate dev",
+    "db:migrate:deploy": "node scripts/prisma-with-env.js migrate deploy",
+    "db:seed": "node prisma/seed.js",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "lint": "eslint src --ext .js",
+    "lint:fix": "eslint src --ext .js --fix",
+    "test": "jest --forceExit --detectOpenHandles",
+    "test:unit": "jest --config jest.unit.config.js",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --forceExit",
+    "test:ci": "jest --ci --coverage --forceExit --detectOpenHandles"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@prisma/client": "^6.13.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.0",
+    "morgan": "^1.10.1",
+    "prisma": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "eslint": "^9.39.2",
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.2.2"
+  }
+}
