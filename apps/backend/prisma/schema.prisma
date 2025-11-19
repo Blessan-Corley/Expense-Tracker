@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direct connection for migrations (required for Neon with connection pooling)
+  // For Neon: use direct URL (without -pooler) for migrations
+  // For Neon without pooling or other Postgres: set DIRECT_URL same as DATABASE_URL
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String
+  password      String
+  monthlyBudget Decimal?      @default(0)
+  currency      String        @default("INR")
+  timezone      String        @default("UTC")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  transactions  Transaction[]
+  goals         Goal[]
+  recurringTransactions RecurringTransaction[]
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  type          TransactionType
+  amount        Decimal
+  category      String
+  subcategory   String?
+  description   String
+  isHidden      Boolean         @default(false)
+  date          DateTime
+  paymentMethod String
+  location      String?
+  notes         String?
+  tags          String[]
+  isRecurring   Boolean         @default(false)
+  recurringId   String?
+  attachments   String[]
+  userId        String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurring     RecurringTransaction? @relation(fields: [recurringId], references: [id])
+}
+
+model RecurringTransaction {
+  id            String          @id @default(cuid())
+  type          TransactionType
+  amount        Decimal
+  category      String
+  subcategory   String?
+  description   String
+  paymentMethod String
+  frequency     Frequency
+  nextDate      DateTime
+  endDate       DateTime?
+  isActive      Boolean         @default(true)
+  userId        String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+}
+
+model Goal {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?
+  targetAmount  Decimal
+  currentAmount Decimal     @default(0)
+  targetDate    DateTime
+  category      GoalCategory
+  priority      Priority    @default(MEDIUM)
+  isCompleted   Boolean     @default(false)
+  userId        String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum GoalCategory {
+  EMERGENCY_FUND
+  VACATION
+  HOME_PURCHASE
+  CAR_PURCHASE
+  INVESTMENT
+  DEBT_PAYOFF
+  EDUCATION
+  RETIREMENT
+  OTHER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
