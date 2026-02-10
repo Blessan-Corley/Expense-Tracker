@@ -1,0 +1,8 @@
+{
+  "appId": "com.example.cashcompass",
+  "appName": "Cash Compass",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
