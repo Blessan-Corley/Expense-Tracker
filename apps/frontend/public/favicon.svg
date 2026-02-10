@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Cash Compass">
+  <rect width="256" height="256" rx="56" fill="#f6f4ef"/>
+  <circle cx="128" cy="128" r="92" fill="none" stroke="#0b2545" stroke-width="14"/>
+  <circle cx="128" cy="128" r="62" fill="none" stroke="#d4a24f" stroke-width="6"/>
+  <path d="M128 64L146 143L110 143Z" fill="#d4a24f"/>
+  <path d="M128 196L142 117L114 117Z" fill="#0b2545"/>
+  <circle cx="128" cy="128" r="10" fill="#1f2937"/>
+  <text x="128" y="44" text-anchor="middle" font-size="24" font-family="Segoe UI, Arial, sans-serif" font-weight="700" fill="#1f2937">N</text>
+</svg>
