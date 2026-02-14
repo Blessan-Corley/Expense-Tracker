@@ -1,4 +1,7 @@
+
+
 # Expense Tracker
+Check the app now - https://cash-compass-570.pages.dev
 
 A simple full-stack expense tracker for personal use and small groups.
 
