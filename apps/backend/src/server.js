@@ -25,6 +25,7 @@ const prisma = require('./lib/prisma');
 const app = express();
 const PORT = process.env.PORT || 5000;
 let appVersion = '1.0.0';
+let servesFrontendBundle = false;
 
 try {
   appVersion = require(path.join(__dirname, '../package.json')).version || appVersion;
@@ -214,12 +215,38 @@ app.get('/api/health', async (req, res) => {
 
 // Serve static files from the React app build (in production/Docker)
 if (process.env.NODE_ENV === 'production') {
+  const fs = require('fs');
   const publicPath = path.join(__dirname, '../public');
-  app.use(express.static(publicPath));
+  const indexHtmlPath = path.join(publicPath, 'index.html');
+  const hasFrontendBundle = fs.existsSync(indexHtmlPath);
 
-  // Catch all handler: send back React's index.html file for any non-API routes
-  app.get(/.*/, (req, res) => {
-    res.sendFile(path.join(publicPath, 'index.html'));
+  if (hasFrontendBundle) {
+    servesFrontendBundle = true;
+    app.use(express.static(publicPath));
+
+    // Catch all handler: send back React's index.html file for any non-API routes.
+    app.get(/.*/, (req, res, next) => {
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+
+      return res.sendFile(indexHtmlPath, (error) => {
+        if (error) {
+          next(error);
+        }
+      });
+    });
+  } else {
+    console.log('Frontend bundle not found in /public. Running API-only mode.');
+  }
+}
+
+if (process.env.NODE_ENV === 'production' && !servesFrontendBundle) {
+  app.get('/', (_req, res) => {
+    res.status(200).json({
+      message: 'Expense Tracker API is running',
+      health: '/api/health'
+    });
   });
 }
 
