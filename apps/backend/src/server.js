@@ -63,6 +63,7 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://lo
   .map((origin) => origin.trim())
   .filter(Boolean);
 const localDevOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+const cloudflarePagesOriginPattern = /^https:\/\/[a-z0-9-]+\.pages\.dev$/i;
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -77,6 +78,11 @@ const corsOptions = {
 
     // Always allow localhost/127.0.0.1 origins for local preview and mobile emulator testing.
     if (localDevOriginPattern.test(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow Cloudflare Pages domains (production + preview links).
+    if (cloudflarePagesOriginPattern.test(origin)) {
       return callback(null, true);
     }
 
@@ -151,7 +157,9 @@ app.get('/api/health', async (req, res) => {
       environment: process.env.NODE_ENV || 'development',
       version: appVersion,
       database: 'disconnected',
-      frontend: 'unavailable',
+      frontend: process.env.NODE_ENV === 'production'
+        ? (servesFrontendBundle ? 'available' : 'separate')
+        : 'development',
       memory: {
         used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100,
         total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024 * 100) / 100,
@@ -167,27 +175,6 @@ app.get('/api/health', async (req, res) => {
       console.error('Database health check failed:', dbError.message);
       healthCheck.database = 'disconnected';
       healthCheck.status = 'unhealthy';
-    }
-
-    // Check if frontend files are available (in production/Docker)
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        const fs = require('fs');
-        const frontendIndexExists = fs.existsSync(path.join(__dirname, '../public/index.html'));
-        const frontendAssetsExist = fs.existsSync(path.join(__dirname, '../public/assets'));
-
-        if (frontendIndexExists && frontendAssetsExist) {
-          healthCheck.frontend = 'available';
-        } else {
-          healthCheck.frontend = 'partial';
-          console.warn('Frontend files partially missing');
-        }
-      } catch (frontendError) {
-        console.error('Frontend health check failed:', frontendError.message);
-        healthCheck.frontend = 'unavailable';
-      }
-    } else {
-      healthCheck.frontend = 'development';
     }
 
     // Overall API health status should depend on API dependencies (DB), not bundled frontend assets.
@@ -302,7 +289,11 @@ if (require.main === module) {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     if (process.env.NODE_ENV === 'production') {
-      console.log('Serving static files from public directory');
+      if (servesFrontendBundle) {
+        console.log('Serving static files from public directory');
+      } else {
+        console.log('Running API-only mode (frontend hosted separately)');
+      }
     }
     console.log(`Health check available at: http://localhost:${PORT}/api/health`);
   });
