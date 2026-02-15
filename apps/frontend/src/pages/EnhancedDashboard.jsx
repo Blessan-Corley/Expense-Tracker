@@ -85,24 +85,6 @@ const EnhancedDashboard = () => {
   const periodNetIncome = periodMetrics.netIncome ?? (periodIncome - periodExpenses);
   const periodSavingsRate = periodMetrics.savingsRate || 0;
 
-  const prevPeriodIncome = periodMetrics.prevIncome || 0;
-  const prevPeriodExpenses = periodMetrics.prevExpenses || 0;
-  const prevPeriodNetIncome = periodMetrics.prevNetIncome || 0;
-  const prevPeriodSavingsRate = periodMetrics.prevSavingsRate || 0;
-
-  const calculateChange = (current, previous) => {
-    if (!previous && !current) return { value: '+0.0%', positive: true };
-    if (!previous && current) return { value: '+100.0%', positive: true };
-    const change = ((current - previous) / previous) * 100;
-    const formatted = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
-    return { value: formatted, positive: change >= 0 };
-  };
-
-  const incomeChange = calculateChange(periodIncome, prevPeriodIncome);
-  const expenseChange = calculateChange(periodExpenses, prevPeriodExpenses);
-  const netIncomeChange = calculateChange(periodNetIncome, prevPeriodNetIncome);
-  const savingsRateChange = calculateChange(periodSavingsRate, prevPeriodSavingsRate);
-
   const periodCategoryBreakdown = periodMetrics.categoryBreakdown?.expenses || analytics.categoryBreakdown?.expenses || [];
 
   const handleDownloadReport = async () => {
@@ -173,36 +155,28 @@ const EnhancedDashboard = () => {
             value: formatCurrency(periodIncome),
             icon: ArrowUpRight,
             color: 'green',
-            gradient: 'from-green-500 to-green-600',
-            change: incomeChange.value,
-            positive: incomeChange.positive
+            gradient: 'from-green-500 to-green-600'
           },
           {
             title: `${selectedPeriod.label} Expenses`,
             value: formatCurrency(periodExpenses),
             icon: ArrowDownRight,
             color: 'red',
-            gradient: 'from-red-500 to-red-600',
-            change: expenseChange.value,
-            positive: !expenseChange.positive // Increase in expenses is negative
+            gradient: 'from-red-500 to-red-600'
           },
           {
             title: 'Net Income',
             value: formatCurrency(periodNetIncome),
             icon: periodNetIncome >= 0 ? TrendingUp : TrendingDown,
             color: periodNetIncome >= 0 ? 'blue' : 'red',
-            gradient: periodNetIncome >= 0 ? 'from-blue-500 to-blue-600' : 'from-red-500 to-red-600',
-            change: netIncomeChange.value,
-            positive: netIncomeChange.positive
+            gradient: periodNetIncome >= 0 ? 'from-blue-500 to-blue-600' : 'from-red-500 to-red-600'
           },
           {
             title: 'Savings Rate',
             value: `${periodSavingsRate.toFixed(1)}%`,
             icon: PiggyBank,
             color: 'purple',
-            gradient: 'from-purple-500 to-purple-600',
-            change: savingsRateChange.value,
-            positive: savingsRateChange.positive
+            gradient: 'from-purple-500 to-purple-600'
           }
         ].map((card, index) => {
           const Icon = card.icon;
@@ -219,14 +193,6 @@ const EnhancedDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className={`p-3 rounded-xl bg-gradient-to-r ${card.gradient} shadow-lg`}>
                     <Icon className="h-6 w-6 text-white" />
-                  </div>
-                  <div className={`flex items-center space-x-1 text-sm ${card.positive ? 'text-green-600' : 'text-red-600'}`}>
-                    {card.positive ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
-                    <span>{card.change}</span>
                   </div>
                 </div>
                 <div>
