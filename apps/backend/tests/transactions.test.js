@@ -696,6 +696,75 @@ describe('Transactions API - Integration Tests', () => {
     });
   });
 
+  describe('GET /api/transactions/analytics/period', () => {
+    beforeEach(async () => {
+      const now = new Date();
+      await prisma.transaction.createMany({
+        data: [
+          {
+            type: 'INCOME',
+            amount: 12000,
+            category: 'Salary',
+            description: 'Period income',
+            date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1),
+            paymentMethod: 'Bank Transfer',
+            tags: [],
+            attachments: [],
+            userId: testUser.id
+          },
+          {
+            type: 'EXPENSE',
+            amount: 3200,
+            category: 'Food & Dining',
+            description: 'Period expense',
+            date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1),
+            paymentMethod: 'Card',
+            tags: [],
+            attachments: [],
+            userId: testUser.id
+          }
+        ]
+      });
+    });
+
+    it('should return weekly period analytics', async () => {
+      const response = await request(app)
+        .get('/api/transactions/analytics/period?period=weekly&week=current')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('period', 'weekly');
+      expect(response.body).toHaveProperty('label');
+      expect(response.body).toHaveProperty('metrics');
+      expect(response.body.metrics).toHaveProperty('income');
+      expect(response.body.metrics).toHaveProperty('expenses');
+      expect(response.body.metrics).toHaveProperty('netIncome');
+      expect(Array.isArray(response.body.trend)).toBe(true);
+    });
+
+    it('should return custom period analytics', async () => {
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).toISOString().slice(0, 10);
+      const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+
+      const response = await request(app)
+        .get(`/api/transactions/analytics/period?period=custom&startDate=${startDate}&endDate=${endDate}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('period', 'custom');
+      expect(response.body).toHaveProperty('range');
+      expect(response.body.range).toHaveProperty('text');
+    });
+
+    it('should reject invalid custom date range', async () => {
+      await request(app)
+        .get('/api/transactions/analytics/period?period=custom&startDate=2026-01-10&endDate=2026-01-01')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(400);
+    });
+  });
+
   describe('GET /api/transactions/report', () => {
     beforeEach(async () => {
       const now = new Date();
@@ -780,9 +849,29 @@ describe('Transactions API - Integration Tests', () => {
       expect(yearlyResponse.text).toContain('Planned Budget,600000.00');
     });
 
+    it('should generate weekly and custom CSV reports', async () => {
+      const weeklyResponse = await request(app)
+        .get('/api/transactions/report?timeframe=weekly&week=current')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect('Content-Type', /text\/csv/)
+        .expect(200);
+
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).toISOString().slice(0, 10);
+      const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+      const customResponse = await request(app)
+        .get(`/api/transactions/report?timeframe=custom&startDate=${startDate}&endDate=${endDate}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect('Content-Type', /text\/csv/)
+        .expect(200);
+
+      expect(weeklyResponse.text).toContain('Timeframe,weekly');
+      expect(customResponse.text).toContain('Timeframe,custom');
+    });
+
     it('should reject invalid timeframe values', async () => {
       await request(app)
-        .get('/api/transactions/report?timeframe=weekly')
+        .get('/api/transactions/report?timeframe=decade')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(400);
     });

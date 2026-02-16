@@ -57,25 +57,217 @@ const transactionVisibilitySchema = Joi.object({
   isHidden: Joi.boolean().required()
 });
 
-const timeframeSchema = Joi.string().valid('monthly', 'quarterly', 'yearly').default('monthly');
+const timeframeSchema = Joi.string().valid('weekly', 'monthly', 'quarterly', 'yearly', 'custom').default('monthly');
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const getTimeframeRange = (timeframe, now = new Date()) => {
-  if (timeframe === 'quarterly') {
-    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-    const start = new Date(now.getFullYear(), quarterStartMonth, 1);
-    const end = new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
-    return { start, end };
+const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+const endOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
+const formatDateRangeLabel = (start, end) => {
+  const options = { month: 'short', day: 'numeric', year: 'numeric' };
+  return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
+};
+
+const getWeekStart = (date) => {
+  const d = startOfDay(date);
+  const day = (d.getDay() + 6) % 7; // Monday-based week
+  d.setDate(d.getDate() - day);
+  return d;
+};
+
+const mapCategoryBreakdown = (groupedCategories) => groupedCategories.map((cat) => ({
+  category: cat.category,
+  amount: toNumber(cat._sum.amount) || 0
+}));
+
+const getBudgetedAmountForRange = (monthlyBudget, timeframe, start, end) => {
+  const monthly = monthlyBudget || 0;
+  if (timeframe === 'quarterly') return monthly * 3;
+  if (timeframe === 'yearly') return monthly * 12;
+  if (timeframe === 'weekly') return monthly * (12 / 52);
+  if (timeframe === 'custom') {
+    const dayCount = Math.max(1, Math.ceil((end.getTime() - start.getTime() + 1) / DAY_MS));
+    return monthly * (dayCount / 30);
+  }
+  return monthly;
+};
+
+const getTimeframeRange = (timeframe, query = {}, now = new Date()) => {
+  const currentDate = new Date(now);
+  let start;
+  let end;
+  let label;
+  let previousLabel;
+
+  if (timeframe === 'weekly') {
+    const weekSelection = String(query.week || 'current').toLowerCase();
+    start = getWeekStart(currentDate);
+    if (weekSelection === 'previous') {
+      start.setDate(start.getDate() - 7);
+      label = 'Previous Week';
+      previousLabel = 'Two Weeks Ago';
+    } else {
+      label = 'Current Week';
+      previousLabel = 'Previous Week';
+    }
+
+    end = endOfDay(new Date(start));
+    end.setDate(end.getDate() + 6);
+  } else if (timeframe === 'monthly') {
+    const monthInput = query.month ? String(query.month) : '';
+    if (monthInput && !/^\d{4}-(0[1-9]|1[0-2])$/.test(monthInput)) {
+      const error = new Error('Invalid month format. Use YYYY-MM');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const [selectedYear, selectedMonth] = monthInput
+      ? monthInput.split('-').map((v) => Number(v))
+      : [currentDate.getFullYear(), currentDate.getMonth() + 1];
+
+    start = new Date(selectedYear, selectedMonth - 1, 1);
+    end = endOfDay(new Date(selectedYear, selectedMonth, 0));
+
+    label = start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const prevMonthDate = new Date(selectedYear, selectedMonth - 2, 1);
+    previousLabel = prevMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  } else if (timeframe === 'quarterly') {
+    const selectedYear = query.year ? Number(query.year) : currentDate.getFullYear();
+    const selectedQuarter = query.quarter
+      ? Number(query.quarter)
+      : (Math.floor(currentDate.getMonth() / 3) + 1);
+
+    if (!Number.isInteger(selectedYear) || selectedYear < 1970 || selectedYear > 3000) {
+      const error = new Error('Invalid year value');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (![1, 2, 3, 4].includes(selectedQuarter)) {
+      const error = new Error('Invalid quarter value. Use 1, 2, 3, or 4');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const quarterStartMonth = (selectedQuarter - 1) * 3;
+    start = new Date(selectedYear, quarterStartMonth, 1);
+    end = endOfDay(new Date(selectedYear, quarterStartMonth + 3, 0));
+
+    label = `Q${selectedQuarter} ${selectedYear}`;
+    const prevQuarterDate = new Date(selectedYear, quarterStartMonth - 3, 1);
+    previousLabel = `Q${Math.floor(prevQuarterDate.getMonth() / 3) + 1} ${prevQuarterDate.getFullYear()}`;
+  } else if (timeframe === 'yearly') {
+    const selectedYear = query.year ? Number(query.year) : currentDate.getFullYear();
+    if (!Number.isInteger(selectedYear) || selectedYear < 1970 || selectedYear > 3000) {
+      const error = new Error('Invalid year value');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    start = new Date(selectedYear, 0, 1);
+    end = endOfDay(new Date(selectedYear, 11, 31));
+    label = `Year ${selectedYear}`;
+    previousLabel = `Year ${selectedYear - 1}`;
+  } else if (timeframe === 'custom') {
+    if (!query.startDate || !query.endDate) {
+      const error = new Error('Custom timeframe requires startDate and endDate');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const parsedStart = new Date(String(query.startDate));
+    const parsedEnd = new Date(String(query.endDate));
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+      const error = new Error('Invalid custom date range');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    start = startOfDay(parsedStart);
+    end = endOfDay(parsedEnd);
+    if (start > end) {
+      const error = new Error('startDate must be before or equal to endDate');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    label = `Custom (${formatDateRangeLabel(start, end)})`;
+    previousLabel = 'Previous Range';
+  } else {
+    const error = new Error('Invalid timeframe');
+    error.statusCode = 400;
+    throw error;
   }
 
-  if (timeframe === 'yearly') {
-    const start = new Date(now.getFullYear(), 0, 1);
-    const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-    return { start, end };
+  const durationMs = end.getTime() - start.getTime() + 1;
+  const previousEnd = new Date(start.getTime() - 1);
+  const previousStart = new Date(previousEnd.getTime() - durationMs + 1);
+
+  return {
+    start,
+    end,
+    previousStart,
+    previousEnd,
+    label,
+    previousLabel,
+    rangeLabel: formatDateRangeLabel(start, end),
+    previousRangeLabel: formatDateRangeLabel(previousStart, previousEnd)
+  };
+};
+
+const buildTrendData = (transactions, start, end, timeframe) => {
+  const chooseUnit = () => {
+    if (timeframe === 'weekly') return 'day';
+    if (timeframe === 'monthly') return 'day';
+    if (timeframe === 'quarterly' || timeframe === 'yearly') return 'month';
+    const daySpan = Math.max(1, Math.ceil((end.getTime() - start.getTime() + 1) / DAY_MS));
+    return daySpan <= 31 ? 'day' : 'month';
+  };
+
+  const unit = chooseUnit();
+  const acrossYears = start.getFullYear() !== end.getFullYear();
+  const buckets = new Map();
+
+  if (unit === 'day') {
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const key = cursor.toISOString().slice(0, 10);
+      const label = timeframe === 'weekly'
+        ? cursor.toLocaleDateString('en-US', { weekday: 'short' })
+        : cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      buckets.set(key, { period: label, income: 0, expenses: 0, netIncome: 0 });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  } else {
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+    while (cursor <= endMonth) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+      const label = cursor.toLocaleDateString('en-US', acrossYears ? { month: 'short', year: 'numeric' } : { month: 'short' });
+      buckets.set(key, { period: label, income: 0, expenses: 0, netIncome: 0 });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
   }
 
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { start, end };
+  transactions.forEach((tx) => {
+    const date = new Date(tx.date);
+    const key = unit === 'day'
+      ? date.toISOString().slice(0, 10)
+      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!buckets.has(key)) return;
+    const amount = Number(tx.amount) || 0;
+    const bucket = buckets.get(key);
+    if (tx.type === 'INCOME') bucket.income += amount;
+    else bucket.expenses += amount;
+    bucket.netIncome = bucket.income - bucket.expenses;
+  });
+
+  return Array.from(buckets.values()).map((bucket) => ({
+    ...bucket,
+    income: Math.round(bucket.income * 100) / 100,
+    expenses: Math.round(bucket.expenses * 100) / 100,
+    netIncome: Math.round(bucket.netIncome * 100) / 100
+  }));
 };
 
 const csvEscape = (value) => {
@@ -199,6 +391,112 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get analytics for a selected period (weekly/monthly/quarterly/yearly/custom)
+router.get('/analytics/period', async (req, res) => {
+  try {
+    const timeframe = timeframeSchema.validate(req.query.period || 'monthly').value;
+    const {
+      start,
+      end,
+      previousStart,
+      previousEnd,
+      label,
+      previousLabel,
+      rangeLabel,
+      previousRangeLabel
+    } = getTimeframeRange(timeframe, req.query, new Date());
+
+    const [
+      incomeAgg,
+      expenseAgg,
+      prevIncomeAgg,
+      prevExpenseAgg,
+      expenseCategories,
+      incomeCategories,
+      trendTransactions
+    ] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { userId: req.user.id, type: 'INCOME', date: { gte: start, lte: end } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { userId: req.user.id, type: 'EXPENSE', date: { gte: start, lte: end } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { userId: req.user.id, type: 'INCOME', date: { gte: previousStart, lte: previousEnd } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { userId: req.user.id, type: 'EXPENSE', date: { gte: previousStart, lte: previousEnd } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.groupBy({
+        by: ['category'],
+        where: { userId: req.user.id, type: 'EXPENSE', date: { gte: start, lte: end } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.groupBy({
+        by: ['category'],
+        where: { userId: req.user.id, type: 'INCOME', date: { gte: start, lte: end } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.findMany({
+        where: { userId: req.user.id, date: { gte: start, lte: end } },
+        select: { type: true, amount: true, date: true }
+      })
+    ]);
+
+    const income = toNumber(incomeAgg._sum.amount) || 0;
+    const expenses = toNumber(expenseAgg._sum.amount) || 0;
+    const prevIncome = toNumber(prevIncomeAgg._sum.amount) || 0;
+    const prevExpenses = toNumber(prevExpenseAgg._sum.amount) || 0;
+    const netIncome = income - expenses;
+    const prevNetIncome = prevIncome - prevExpenses;
+    const savingsRate = income > 0 ? (netIncome / income) * 100 : 0;
+    const prevSavingsRate = prevIncome > 0 ? (prevNetIncome / prevIncome) * 100 : 0;
+
+    const trend = buildTrendData(trendTransactions, start, end, timeframe);
+
+    res.json({
+      period: timeframe,
+      label,
+      comparisonLabel: previousLabel,
+      range: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        text: rangeLabel
+      },
+      previousRange: {
+        start: previousStart.toISOString(),
+        end: previousEnd.toISOString(),
+        text: previousRangeLabel
+      },
+      metrics: {
+        income,
+        expenses,
+        netIncome,
+        savingsRate: Math.round(savingsRate * 100) / 100,
+        prevIncome,
+        prevExpenses,
+        prevNetIncome,
+        prevSavingsRate: Math.round(prevSavingsRate * 100) / 100
+      },
+      categoryBreakdown: {
+        expenses: mapCategoryBreakdown(expenseCategories),
+        income: mapCategoryBreakdown(incomeCategories)
+      },
+      trend
+    });
+  } catch (error) {
+    if (error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error(error);
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -546,11 +844,6 @@ router.get('/analytics', async (req, res) => {
     const yearlySavingsRate = yearlyIncomeTotal > 0 ? (yearlySavings / yearlyIncomeTotal) * 100 : 0;
     const prevYearlySavingsRate = prevYearlyIncomeTotal > 0 ? (prevYearlySavings / prevYearlyIncomeTotal) * 100 : 0;
 
-    const mapCategoryBreakdown = (groupedCategories) => groupedCategories.map((cat) => ({
-      category: cat.category,
-      amount: toNumber(cat._sum.amount) || 0
-    }));
-
     res.json({
       monthly: {
         expenses: monthlyExpenseTotal,
@@ -619,7 +912,7 @@ router.get('/report', async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { start, end } = getTimeframeRange(timeframe);
+    const { start, end, label } = getTimeframeRange(timeframe, req.query);
 
     const [incomeAgg, expenseAgg, userBudget, transactions] = await Promise.all([
       prisma.transaction.aggregate({
@@ -654,8 +947,7 @@ router.get('/report', async (req, res) => {
     const income = toNumber(incomeAgg._sum.amount) || 0;
     const expenses = toNumber(expenseAgg._sum.amount) || 0;
     const monthlyBudget = toNumber(userBudget?.monthlyBudget) || 0;
-    const multiplierByTimeframe = { monthly: 1, quarterly: 3, yearly: 12 };
-    const budgeted = monthlyBudget * (multiplierByTimeframe[timeframe] || 1);
+    const budgeted = getBudgetedAmountForRange(monthlyBudget, timeframe, start, end);
     const netIncome = income - expenses;
     const savingsRate = income > 0 ? (netIncome / income) * 100 : 0;
     const remainingBudget = Math.max(0, budgeted - expenses);
@@ -663,6 +955,7 @@ router.get('/report', async (req, res) => {
     const headerRows = [
       ['Report Name', 'Expense Tracker Report'],
       ['Timeframe', timeframe],
+      ['Label', label],
       ['Period Start', start.toISOString().slice(0, 10)],
       ['Period End', end.toISOString().slice(0, 10)],
       ['Generated At', new Date().toISOString()],
@@ -709,6 +1002,9 @@ router.get('/report', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.status(200).send(csv);
   } catch (error) {
+    if (error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
+    }
     console.error(error);
     return res.status(500).json({ message: 'Failed to generate report' });
   }

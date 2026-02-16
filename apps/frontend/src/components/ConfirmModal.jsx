@@ -6,6 +6,7 @@ const ConfirmModal = ({
   isOpen,
   title = 'Please Confirm',
   message = 'Are you sure?',
+  details = null,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   onConfirm,
@@ -42,6 +43,11 @@ const ConfirmModal = ({
 
             <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">{title}</h3>
             <p className="text-sm text-gray-600 text-center mb-6">{message}</p>
+            {details ? (
+              <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                {details}
+              </div>
+            ) : null}
 
             <div className="flex gap-3">
               <button

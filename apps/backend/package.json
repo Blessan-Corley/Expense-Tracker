@@ -13,7 +13,7 @@
     "db:migrate": "node scripts/prisma-with-env.js migrate dev",
     "db:migrate:deploy": "node scripts/prisma-with-env.js migrate deploy",
     "db:seed": "node prisma/seed.js",
-    "db:reset": "prisma migrate reset --force",
+    "db:reset": "node scripts/prisma-with-env.js migrate reset",
     "db:studio": "prisma studio",
     "lint": "eslint src --ext .js",
     "lint:fix": "eslint src --ext .js --fix",

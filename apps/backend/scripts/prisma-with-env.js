@@ -14,5 +14,16 @@ if (!process.env.DIRECT_URL && process.env.DATABASE_URL) {
 }
 
 const args = process.argv.slice(2);
+
+const hasDangerousFlag = args.includes('--force-reset') || args.includes('--accept-data-loss');
+const isMigrateReset = args[0] === 'migrate' && args[1] === 'reset';
+const allowDestructive = process.env.ALLOW_DESTRUCTIVE_DB_COMMANDS === 'true';
+
+if ((hasDangerousFlag || isMigrateReset) && !allowDestructive) {
+  console.error('Refusing to run destructive Prisma command.');
+  console.error('If you really need it, set ALLOW_DESTRUCTIVE_DB_COMMANDS=true for that command only.');
+  process.exit(1);
+}
+
 const cmd = ['npx', 'prisma', ...args].join(' ');
 execSync(cmd, { stdio: 'inherit', cwd: path.join(__dirname, '..') });

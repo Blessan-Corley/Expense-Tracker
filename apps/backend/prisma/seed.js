@@ -30,10 +30,13 @@ async function main() {
 
   console.log(' Created demo user:', user.email);
 
-  // Delete existing transactions for clean slate
-  await prisma.transaction.deleteMany({ where: { userId: user.id } });
-  await prisma.goal.deleteMany({ where: { userId: user.id } });
-  await prisma.recurringTransaction.deleteMany({ where: { userId: user.id } });
+  // Keep seed non-destructive: never wipe existing data.
+  // If demo data already exists, skip re-seeding to avoid duplicates.
+  const existingDemoTransactions = await prisma.transaction.count({ where: { userId: user.id } });
+  if (existingDemoTransactions > 0) {
+    console.log(' Demo data already exists. Skipping seed to avoid overwriting existing records.');
+    return;
+  }
 
   // Create sample transactions - mix of income and expenses
   const now = new Date();

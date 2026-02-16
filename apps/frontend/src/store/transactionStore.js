@@ -4,6 +4,7 @@ import axiosInstance from '../utils/axios';
 export const useTransactionStore = create((set, get) => ({
   transactions: [],
   analytics: null,
+  periodAnalytics: null,
   categories: {
     income: [],
     expense: []
@@ -182,6 +183,25 @@ export const useTransactionStore = create((set, get) => ({
     }
   },
 
+  fetchPeriodAnalytics: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value);
+        }
+      });
+
+      const response = await axiosInstance.get(`/transactions/analytics/period?${queryParams.toString()}`);
+      set({ periodAnalytics: response.data });
+      return { success: true, data: response.data };
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to fetch period analytics';
+      set({ error: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  },
+
   fetchCategories: async () => {
     try {
       const response = await axiosInstance.get(`/transactions/categories`);
@@ -267,9 +287,18 @@ export const useTransactionStore = create((set, get) => ({
     }
   },
 
-  downloadReport: async (timeframe = 'monthly') => {
+  downloadReport: async (options = 'monthly') => {
     try {
-      const response = await axiosInstance.get(`/transactions/report?timeframe=${timeframe}`, {
+      const params = typeof options === 'string' ? { timeframe: options } : options;
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value);
+        }
+      });
+
+      const timeframe = params.timeframe || 'monthly';
+      const response = await axiosInstance.get(`/transactions/report?${queryParams.toString()}`, {
         responseType: 'blob'
       });
 

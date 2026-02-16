@@ -4,7 +4,11 @@ const dotenv = require('dotenv');
 
 function loadEnv() {
   const backendRoot = path.join(__dirname, '..', '..');
-  const envFiles = process.env.NODE_ENV === 'production'
+  const useProductionEnvFile =
+    process.env.NODE_ENV === 'production' &&
+    process.env.USE_ENV_PRODUCTION !== 'false';
+
+  const envFiles = useProductionEnvFile
     ? [
       path.join(backendRoot, '.env.production'),
       path.join(backendRoot, '.env'),
