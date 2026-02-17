@@ -115,6 +115,7 @@ const EnhancedDashboard = () => {
   const periodMetrics = periodAnalytics.metrics || {};
   const trendData = periodAnalytics.trend || [];
   const periodCategoryBreakdown = periodAnalytics.categoryBreakdown?.expenses || [];
+  const compatibilityMessage = periodAnalytics.compatibilityMessage || '';
 
   const periodIncome = periodMetrics.income || 0;
   const periodExpenses = periodMetrics.expenses || 0;
@@ -334,6 +335,11 @@ const EnhancedDashboard = () => {
             </p>
             {customRangeInvalid && (
               <p className="mt-2 text-sm text-red-600">Custom range is invalid. End date must be on or after start date.</p>
+            )}
+            {periodAnalytics.compatibilityMode && compatibilityMessage && (
+              <p className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {compatibilityMessage}
+              </p>
             )}
           </div>
         </div>
